@@ -1,7 +1,7 @@
-#include "quad_vi_ekf.h"
+#include "pb_vi_ekf/ekf.h"
 
 
-namespace qviekf
+namespace pbviekf
 {
 
 
@@ -21,12 +21,12 @@ EKF::~EKF() {}
 void EKF::load(const string &filename, const std::string& name)
 {
   // Resize arrays to the correct sizes
-  common::get_yaml_node("ekf_update_rate", filename, update_rate_);
-  common::get_yaml_node("ekf_max_history_size", filename, max_history_size_);
-  common::get_yaml_node("ekf_num_features", filename, nfm_);
-  common::get_yaml_node("ekf_use_drag", filename, use_drag_);
-  common::get_yaml_node("ekf_use_partial_update", filename, use_partial_update_);
-  common::get_yaml_node("ekf_use_keyframe_reset", filename, use_keyframe_reset_);
+  common::get_yaml_node("update_rate", filename, update_rate_);
+  common::get_yaml_node("max_history_size", filename, max_history_size_);
+  common::get_yaml_node("num_features", filename, nfm_);
+  common::get_yaml_node("use_drag", filename, use_drag_);
+  common::get_yaml_node("use_partial_update", filename, use_partial_update_);
+  common::get_yaml_node("use_keyframe_reset", filename, use_keyframe_reset_);
   if (use_drag_)
     nbs_ = 17;
   else
@@ -59,14 +59,14 @@ void EKF::load(const string &filename, const std::string& name)
   // Initializations
   Vector3d lambda_feat;
   VectorXd x0(17), P0_base(16), Qx_base(16), lambda_base(16);
-  common::get_yaml_node("ekf_rho0", filename, rho0_);
-  common::get_yaml_node("ekf_init_imu_bias", filename, init_imu_bias_);
-  common::get_yaml_eigen("ekf_x0", filename, x0);
-  common::get_yaml_eigen("ekf_P0", filename, P0_base);
-  common::get_yaml_eigen("ekf_Qx", filename, Qx_base);
-  common::get_yaml_eigen_diag("ekf_Qu", filename, Qu_);
-  common::get_yaml_eigen_diag("ekf_P0_feat", filename, P0_feat_);
-  common::get_yaml_eigen_diag("ekf_Qx_feat", filename, Qx_feat_);
+  common::get_yaml_node("rho0", filename, rho0_);
+  common::get_yaml_node("init_imu_bias", filename, init_imu_bias_);
+  common::get_yaml_eigen("x0", filename, x0);
+  common::get_yaml_eigen("P0", filename, P0_base);
+  common::get_yaml_eigen("Qx", filename, Qx_base);
+  common::get_yaml_eigen_diag("Qu", filename, Qu_);
+  common::get_yaml_eigen_diag("P0_feat", filename, P0_feat_);
+  common::get_yaml_eigen_diag("Qx_feat", filename, Qx_feat_);
   x_ = State<double>(0, uVector::Constant(NAN), nbs_, nfm_, nfa_, x0);
   P_.topLeftCorner(nbd_,nbd_) = P0_base.topRows(nbd_).asDiagonal();
   Qx_.topLeftCorner(nbd_,nbd_) = Qx_base.topRows(nbd_).asDiagonal();
@@ -78,8 +78,8 @@ void EKF::load(const string &filename, const std::string& name)
 
   if (use_partial_update_)
   {
-    common::get_yaml_eigen("ekf_lambda", filename, lambda_base);
-    common::get_yaml_eigen("ekf_lambda_feat", filename, lambda_feat);
+    common::get_yaml_eigen("lambda", filename, lambda_base);
+    common::get_yaml_eigen("lambda_feat", filename, lambda_feat);
     dx_ones_ = VectorXd::Ones(num_dof_);
     lambda_ = VectorXd::Zero(num_dof_);
     Lambda_ = MatrixXd::Zero(num_dof_,num_dof_);
@@ -91,8 +91,8 @@ void EKF::load(const string &filename, const std::string& name)
 
   if (use_keyframe_reset_)
   {
-    common::get_yaml_node("ekf_kfr_mean_pix_disparity_thresh", filename, kfr_mean_pix_disparity_thresh_);
-    common::get_yaml_node("ekf_kfr_min_matches", filename, kfr_min_matches_);
+    common::get_yaml_node("kfr_mean_pix_disparity_thresh", filename, kfr_mean_pix_disparity_thresh_);
+    common::get_yaml_node("kfr_min_matches", filename, kfr_min_matches_);
     initial_keyframe_ = true;
     p_global_ = x_.p;
     q_yaw_global_ = quat::Quatd(0, 0, x_.q.yaw());
@@ -102,9 +102,9 @@ void EKF::load(const string &filename, const std::string& name)
 
   // Load sensor parameters
   Vector4d q_ub, q_um, q_uc;
-  common::get_yaml_eigen_diag("ekf_R_gps", filename, R_gps_);
-  common::get_yaml_eigen_diag("ekf_R_mocap", filename, R_mocap_);
-  common::get_yaml_eigen_diag("ekf_R_cam", filename, R_cam_);
+  common::get_yaml_eigen_diag("R_gps", filename, R_gps_);
+  common::get_yaml_eigen_diag("R_mocap", filename, R_mocap_);
+  common::get_yaml_eigen_diag("R_cam", filename, R_cam_);
   common::get_yaml_eigen("p_ub", filename, p_ub_);
   common::get_yaml_eigen("q_ub", filename, q_ub);
   common::get_yaml_eigen("p_um", filename, p_um_);
@@ -126,39 +126,11 @@ void EKF::load(const string &filename, const std::string& name)
   // Logging
   std::stringstream ss_t, ss_e, ss_c;
   ss_t << "/tmp/" << name << "_ekf_truth.log";
-  ss_e << "/tmp/" << name << "_ekf_est.log";
+  ss_e << "/tmp/" << name << "_ekf_state.log";
   ss_c << "/tmp/" << name << "_ekf_cov.log";
   true_state_log_.open(ss_t.str());
   ekf_state_log_.open(ss_e.str());
   cov_log_.open(ss_c.str());
-}
-
-
-void EKF::run(const double &t, const sensors::Sensors &sensors, const Vector3d& vw, const vehicle::Stated& x_true, const MatrixXd& lm)
-{
-  // Initialize IMU close to the truth (simulate flat ground calibration)
-  if (init_imu_bias_)
-  {
-    x_.ba = sensors.getAccelBias() + 0.01 * Vector3d::Random();
-    x_.bg = sensors.getGyroBias() + 0.001 * Vector3d::Random();
-    P_.block<3,3>(DBA,DBA) = 0.0001 * Matrix3d::Identity();
-    P_.block<3,3>(DBG,DBG) = 0.000001 * Matrix3d::Identity();
-    init_imu_bias_ = false;
-  }
-
-  // Run all sensor callbacks
-  if (sensors.new_imu_meas_)
-    imuCallback(sensors.imu_);
-  if (sensors.new_camera_meas_)
-    cameraCallback(sensors.image_);
-  if (sensors.new_gps_meas_)
-    gpsCallback(sensors.gps_);
-  if (sensors.new_mocap_meas_)
-    mocapCallback(sensors.mocap_);
-
-  // Truth logging
-  if (common::round2dec(t - last_filter_update_, 6) == 0 && second_imu_received_)
-    logTruth(t, sensors, x_true, lm);
 }
 
 
@@ -211,14 +183,57 @@ void EKF::mocapCallback(const common::Mocapd &z)
 }
 
 
-vehicle::Stated EKF::getState() const
+void EKF::logTruth(const double &t, const Vector3d &p_t, const Vector3d &v_t, const Quatd &q_t,
+                   const Vector3d &ba_t, const Vector3d &bg_t, const double &mu_t, const Vector3d& omegab_t, const MatrixXd &lm)
 {
-  vehicle::Stated x;
-  x.p = x_.p;
-  x.v = x_.q.rotp(x_.v);
-  x.q = x_.q;
-  x.omega = xdot_.segment<3>(DQ);
-  return x;
+  // This filter state is in the IMU frame but truth is in the body frame
+  Vector3d p_iu = p_t + q_t.rota(q_ub_.rotp(-p_ub_));
+  Vector3d v_ui = q_ub_.rota(v_t + omegab_t.cross(q_ub_.rotp(-p_ub_)));
+  quat::Quatd q_iu = q_t * q_ub_.inverse();
+
+  true_state_log_.log(t);
+  true_state_log_.logMatrix(p_iu, v_ui, q_iu.euler(), ba_t, bg_t);
+  if(use_drag_)
+    true_state_log_.log(mu_t);
+
+  // Compute true landmark pixel measurement
+  for (int i = 0; i < nfm_; ++i)
+  {
+    if (i+1 <= x_.nfa)
+    {
+      // Find the inertial landmark that matches the current state feature label
+      Vector3d lmi;
+      for (int j = 0; j < lm.cols(); ++j)
+      {
+        if (j == x_.feats[i].id)
+        {
+          lmi = lm.col(j);
+          break;
+        }
+      }
+
+      // Calculate the true vector from camera to landmark in the camera frame
+      quat::Quatd q_i2c = q_t * q_ub_.inverse() * q_uc_;
+      Vector3d p_i2c = p_t + q_t.rota(q_ub_.rotp(p_uc_ - p_ub_));
+      Vector3d lmc = q_i2c.rotp(lmi - p_i2c);
+
+      // Compute pixel position and inverse z-depth
+      Vector2d pix;
+      common::projToImg(pix, lmc, cam_matrix_);
+      double rho = 1.0 / lmc(2);
+
+      // Log the data
+      true_state_log_.logMatrix(pix);
+      true_state_log_.log(rho);
+    }
+    else
+    {
+      static const Vector2d a(NAN,NAN);
+      static const double b(NAN);
+      true_state_log_.logMatrix(a);
+      true_state_log_.log(b);
+    }
+  }
 }
 
 
@@ -649,59 +664,6 @@ void EKF::numericalN(const Stated &x, MatrixXd &N)
 }
 
 
-void EKF::logTruth(const double &t, const sensors::Sensors &sensors, const vehicle::Stated& xb_true, const MatrixXd& lm)
-{
-  // This filter state is in the IMU frame but truth is in the body frame
-  Vector3d p_iu = xb_true.p + xb_true.q.rota(q_ub_.rotp(-p_ub_));
-  Vector3d v_ui = q_ub_.rota(xb_true.v + xb_true.omega.cross(q_ub_.rotp(-p_ub_)));
-  quat::Quatd q_iu = xb_true.q * q_ub_.inverse();
-
-  true_state_log_.log(t);
-  true_state_log_.logMatrix(p_iu, v_ui, q_iu.euler(), sensors.getAccelBias(), sensors.getGyroBias());
-  if(use_drag_)
-    true_state_log_.log(xb_true.drag);
-
-  // Compute true landmark pixel measurement
-  for (int i = 0; i < nfm_; ++i)
-  {
-    if (i+1 <= x_.nfa)
-    {
-      // Find the inertial landmark that matches the current state feature label
-      Vector3d lmi;
-      for (int j = 0; j < lm.cols(); ++j)
-      {
-        if (j == x_.feats[i].id)
-        {
-          lmi = lm.col(j);
-          break;
-        }
-      }
-
-      // Calculate the true vector from camera to landmark in the camera frame
-      quat::Quatd q_i2c = xb_true.q * q_ub_.inverse() * q_uc_;
-      Vector3d p_i2c = xb_true.p + xb_true.q.rota(q_ub_.rotp(p_uc_ - p_ub_));
-      Vector3d lmc = q_i2c.rotp(lmi - p_i2c);
-
-      // Compute pixel position and inverse z-depth
-      Vector2d pix;
-      common::projToImg(pix, lmc, cam_matrix_);
-      double rho = 1.0 / lmc(2);
-
-      // Log the data
-      true_state_log_.logMatrix(pix);
-      true_state_log_.log(rho);
-    }
-    else
-    {
-      static const Vector2d a(NAN,NAN);
-      static const double b(NAN);
-      true_state_log_.logMatrix(a);
-      true_state_log_.log(b);
-    }
-  }
-}
-
-
 void EKF::logEst()
 {
   Vector3d p;
@@ -787,4 +749,4 @@ RowVector3d EKF::M(const Vector2d &nu)
 }
 
 
-} // namespace qviekf
+} // namespace pbviekf

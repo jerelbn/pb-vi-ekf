@@ -3,21 +3,19 @@
 #include <Eigen/Dense>
 #include <chrono>
 #include <deque>
-#include "vi_ekf_state.h"
+#include "state.h"
 #include "common_cpp/common.h"
 #include "common_cpp/logger.h"
 #include "common_cpp/measurement.h"
 #include "geometry/quat.h"
 #include "geometry/xform.h"
 #include "geometry/support.h"
-#include "sensors.h"
-#include "vehicle.h"
 
 using namespace std;
 using namespace Eigen;
 
 
-namespace qviekf
+namespace pbviekf
 {
 
 
@@ -31,13 +29,29 @@ public:
   ~EKF();
 
   void load(const string &filename, const string &name);
-  void run(const double &t, const sensors::Sensors &sensors, const Vector3d &vw, const vehicle::Stated &x_true, const MatrixXd &lm);
-  void truthCallback(const double& t, vehicle::Stated& x);
   void imuCallback(const common::Imud &z);
   void cameraCallback(const common::Imaged& z);
   void gpsCallback(const common::Gpsd &z);
   void mocapCallback(const common::Mocapd& z);
-  vehicle::Stated getState() const;
+  void logTruth(const double& t, const Vector3d& p_t, const Vector3d& v_t, const quat::Quatd& q_t,
+                const Vector3d& ba_t, const Vector3d& bg_t, const double& mu_t, const Vector3d &omegab_t, const MatrixXd& lm);
+
+  const Stated& getState() const { return x_; }
+  const MatrixXd& getCov() const { return P_; }
+  const Vector3d& getGlobalPosition() const
+  {
+    if (use_keyframe_reset_)
+      return p_global_;
+    else
+      return x_.p;
+  }
+  quat::Quatd getGlobalAttitude() const
+  {
+    if (use_keyframe_reset_)
+      return quat::Quatd(x_.q.roll(), x_.q.pitch(), q_yaw_global_.yaw());
+    else
+      return x_.q;
+  }
 
 private:
   void f(const Stated &x, const uVector& u, VectorXd &dx, const uVector& eta = uVector::Zero());
@@ -54,7 +68,6 @@ private:
   void analyticalFG(const Stated &x, const uVector& u, MatrixXd& F, MatrixXd& G);
   void numericalFG(const Stated &x, const uVector& u, MatrixXd& F, MatrixXd& G);
   void numericalN(const Stated &x, MatrixXd& N);
-  void logTruth(const double &t, const sensors::Sensors &sensors, const vehicle::Stated& xb_true, const MatrixXd &lm);
   void logEst();
 
   Matrix<double,2,3> Omega(const Vector2d& nu);
@@ -118,4 +131,4 @@ private:
 };
 
 
-} // namespace qviekf
+} // namespace pbviekf

@@ -8,7 +8,7 @@ using namespace std;
 using namespace Eigen;
 
 
-namespace qviekf
+namespace pbviekf
 {
 
 
@@ -164,4 +164,4 @@ struct State
 typedef State<double> Stated;
 
 
-} // namespace qviekf
+} // namespace pbviekf
