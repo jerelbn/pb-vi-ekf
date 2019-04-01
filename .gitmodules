@@ -1,0 +1,6 @@
+[submodule "lib/common_cpp"]
+	path = lib/common_cpp
+	url = git@magiccvs.byu.edu:Jerel/common_cpp.git
+[submodule "lib/geometry"]
+	path = lib/geometry
+	url = git@github.com:superjax/geometry.git
