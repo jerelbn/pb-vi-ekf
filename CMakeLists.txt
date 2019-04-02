@@ -10,6 +10,15 @@ set(CMAKE_CXX_FLAGS "-std=c++14 -mavx2 -mfma -fopenmp")
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(GTest)
+find_package(catkin COMPONENTS
+  rosbag
+  roscpp
+  nav_msgs
+  sensor_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
 
 if (NOT TARGET common_cpp)
   add_subdirectory(lib/common_cpp)
@@ -21,9 +30,15 @@ if (NOT TARGET geometry)
   include_directories(lib/geometry/include)
 endif()
 
+if (NOT TARGET feature_tracker)
+  add_subdirectory(lib/feature-tracker)
+  include_directories(lib/feature-tracker/include)
+endif()
+
 include_directories(include/pb_vi_ekf
+  ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
-  ${YAML_CPP_INCLUDE_DIR}
+  ${YAML_CPP_INCLUDE_DIRS}
   )
 
 add_library(pb_vi_ekf
@@ -50,4 +65,21 @@ if (${GTEST_FOUND})
     ${GTEST_LIBRARIES}
     ${YAML_CPP_LIBRARIES}
     )
+endif()
+
+## BUILD THE ROS executables if catkin is present
+if (${catkin_FOUND})
+  message("Found catkin - building ROS parser")
+  add_executable(rosbag_parser 
+    src/rosbag_parser.cpp
+    )
+  target_link_libraries(rosbag_parser
+    common_cpp
+    geometry
+    feature_tracker
+    pb_vi_ekf
+    ${catkin_LIBRARIES}
+    )
+else()
+  message("No catkin found - not building ROSbag parser")
 endif()

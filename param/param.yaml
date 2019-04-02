@@ -1,10 +1,10 @@
 ## EKF Parameters
 update_rate: 100 # Hz
-max_history_size: 200
+max_history_size: 500
 
-use_drag: true
-use_partial_update: true
-use_keyframe_reset: true
+use_drag: false
+use_partial_update: false
+use_keyframe_reset: false
 
 num_features: 10
 rho0: 0.001
@@ -12,18 +12,18 @@ rho0: 0.001
 kfr_mean_pix_disparity_thresh: 60
 kfr_min_matches: 1
 
-x0: [0, 0, -1,    # POS
+x0: [0, 0, -0.25,    # POS
      0, 0, 0,    # VEL
      1, 0, 0, 0, # ATT
-     0, 0, 0,    # ACCEL BIAS
-     0, 0, 0,    # GYRO BIAS
-     0.05]      # DRAG COEFFICIENT
+     0.2068353013089572, -0.06659288839944763, 0.09476882512448331,    # ACCEL BIAS
+     -0.0003285246608417565, -0.0002280961872561094, -0.0003924105593599874,    # GYRO BIAS
+     0.1362093183596568]      # DRAG COEFFICIENT
 
 P0: [0, 0, 0, # POS
      1e-8, 1e-8, 1e-8, # VEL
-     1e-2, 1e-2, 1e-2, # ATT
-     5e-2, 5e-2, 5e-2, # ACCEL BIAS
-     2e-3, 2e-3, 2e-3, # GYRO BIAS
+     1e-4, 1e-4, 1e-4, # ATT
+     1e-4, 1e-4, 1e-4, # ACCEL BIAS
+     1e-5, 1e-5, 1e-5, # GYRO BIAS
      1e-3]             # DRAG COEFFICIENT
 P0_feat: [4.0, 4.0, 0.25]
 
@@ -35,8 +35,8 @@ Qx: [0, 0, 0, # POS
      0]             # DRAG COEFFICIENT
 Qx_feat: [0, 0, 0]
 
-Qu: [0.25, 0.25, 0.25, # ACCEL
-     0.01, 0.01, 0.01] # GYRO
+Qu: [1.0, 1.0, 1.0, # ACCEL
+     0.1, 0.1, 0.1] # GYRO
 R_gps: [25.0, 25.0, 81.0, # POSITION
         0.01, 0.01, 0.09] # VELOCITY
 R_mocap: [1e-2, 1e-2, 1e-2, # POSITION
@@ -51,15 +51,19 @@ lambda: [1.0, 1.0, 1.0, # POS
          0.1]           # DRAG COEFFICIENT
 lambda_feat: [1.0, 1.0, 1.0]
 
-p_ub: [0.0930, -0.0685, 0.0941] # translation from IMU to body in IMU frame
-q_ub: [0.9991, -0.0078, 0.0416, 0.0003] # rotation from IMU to body frame !!NOTE: do not include any yaw rotation
-camera_matrix: [480,   0, 320,
-                  0, 480, 240,
+## Sensor parameters
+tm: -1.314352550914741 # motion capture time offset from IMU
+tc: 0.03410208357144781 # camera time offset from IMU
+p_ub: [0, 0, 0] # translation from IMU to body in IMU frame
+q_ub: [0.9999930073498011, -0.003708739104522239, -0.0004800906606494666, -4.325838313168078e-06] # rotation from IMU to body frame !!NOTE: do not include any yaw rotation
+image_size: [640, 480]
+camera_matrix: [611.1864013671875,   0, 315.83184814453125,
+                  0, 611.5557861328125, 242.1165771484375,
                   0,   0,   1]
-p_uc: [0.1, 0.05, 0.03] # translation from IMU to camera in IMU frame
-q_uc: [0.7071, 0.0, 0.0, 0.7071] # rotation from IMU to camera
-p_um: [0.0930, -0.0685, 0.0941] # translation from IMU to mocap_body in body frame
-q_um: [0.9928, 0.0447, 0.0547, 0.0971] # rotation from IMU to mocap_body
+p_uc: [0.1277860955660054, -0.05473922627893135, 0.03988017380891627] # translation from IMU to camera in IMU frame
+q_uc: [0.5042062520912741, 0.4947023458150829, 0.5019491052281713, 0.4990919155403806] # rotation from IMU to camera
+p_um: [-0.08002042611239044, 0.0007684240700491961, 0.03257473961665287] # translation from IMU to mocap_body in body frame
+q_um: [0.9997165820737446, 0.0005113854112669611, 0.009751900931695277, 0.02171161992968069] # rotation from IMU to mocap_body
 pitot_azimuth: 0 # relative angle about body z axis to pitot tube direction
 pitot_elevation: 0 # relative angle about body y axis to pitot tube direction
 wvane_roll: 0 # relative angle about body z axis to weather vane vertical direction

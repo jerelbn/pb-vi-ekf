@@ -1,0 +1,14 @@
+## ROSbag parser parameters
+# bag_name: "/home/jerel/Dropbox/MocapCalCollect1.bag"
+bag_name: "/home/jerel/Dropbox/MocapCalCollect2.bag" # good start, end, duration: 8, 55, 47
+# bag_name: "/home/jerel/Dropbox/MocapCalCollect3.bag" # good start, end, duration: 11, 126, 115
+# bag_name: "/home/jerel/Dropbox/MocapCalCollect4.bag" # good start, end, duration: 15, 88, 73
+imu_topic: "/imu/data"
+mocap_topic: "/vrpn_client_node/Leo/pose"
+image_topic: "/camera/color/image_raw/compressed"
+start_time: 8.0
+duration: 47.0 # <=0 runs entire bag
+
+## Sensor parameters
+q_mocap_to_NED_pos: [0.7071067811865476, 0.7071067811865476, 0, 0]
+q_mocap_to_NED_att: [0.7071067811865476, 0, 0, 0.7071067811865476]
