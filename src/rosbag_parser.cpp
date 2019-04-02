@@ -148,7 +148,7 @@ void RosbagParser::parseBag()
 
       mocap.t = (pose_msg->header.stamp - bag_start_).toSec() + mocap_time_offset_;
       mocap.id = ++next_mocap_id_;
-      ekf_.mocapCallback(mocap);
+//      ekf_.mocapCallback(mocap);
     }
 
     else if (datatype.compare("sensor_msgs/CompressedImage") == 0)
