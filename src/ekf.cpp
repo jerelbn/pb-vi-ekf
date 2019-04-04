@@ -60,6 +60,7 @@ void EKF::load(const string &filename, const std::string& name)
   Vector3d lambda_feat;
   VectorXd x0(17), P0_base(16), Qx_base(16), lambda_base(16);
   common::get_yaml_node("rho0", filename, rho0_);
+  common::get_yaml_node("init_imu_bias", filename, init_imu_bias_);
   common::get_yaml_eigen("x0", filename, x0);
   common::get_yaml_eigen("P0", filename, P0_base);
   common::get_yaml_eigen("Qx", filename, Qx_base);
