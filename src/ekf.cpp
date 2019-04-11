@@ -367,15 +367,18 @@ void EKF::cameraUpdate(const common::FeatVecd &tracked_feats)
   if (x_.nfa > 0)
   {
     // Build measurement vector and model
-    z_cam_.setZero();
-    h_cam_.setZero();
+    auto z_cam = z_cam_.segment(0,x_.nbd+x_.nfa);
+    auto h_cam = h_cam_.segment(0,x_.nbd+x_.nfa);
     for (int i = 0; i < x_.nfa; ++i)
     {
-      z_cam_.segment<2>(2*i) = matched_feats_[i];
-      h_cam_.segment<2>(2*i) = x_.feats[i].pix;
+      z_cam.segment<2>(2*i) = matched_feats_[i];
+      h_cam.segment<2>(2*i) = x_.feats[i].pix;
     }
 
-    measurementUpdate(z_cam_-h_cam_, R_cam_big_, H_cam_, K_cam_);
+    auto R_cam = R_cam_big_.block(0,0,2*x_.nfa,2*x_.nfa);
+    auto H_cam = H_cam_.block(0,0,2*x_.nfa,x_.nbd+3*x_.nfa);
+    auto K_cam = K_cam_.block(0,0,x_.nbd+3*x_.nfa,2*x_.nfa);
+    measurementUpdate(z_cam-h_cam, R_cam, H_cam, K_cam);
   }
 
   // Fill state with new features if needed
@@ -410,7 +413,9 @@ void EKF::gpsUpdate(const Vector6d& z)
   }
 
   // Apply the update
-  measurementUpdate(z-h_gps_, R_gps_, H_gps_, K_gps_);
+  auto H_gps = H_gps_.block(0,0,6,x_.nbd+3*x_.nfa);
+  auto K_gps = K_gps_.block(0,0,x_.nbd+3*x_.nfa,6);
+  measurementUpdate(z-h_gps_, R_gps_, H_gps, K_gps);
 }
 
 
@@ -437,22 +442,28 @@ void EKF::mocapUpdate(const xform::Xformd &z)
   }
 
   // Apply the update
-  measurementUpdate(z-h_mocap_, R_mocap_, H_mocap_, K_mocap_);
+  auto H_mocap = H_mocap_.block(0,0,6,x_.nbd+3*x_.nfa);
+  auto K_mocap = K_mocap_.block(0,0,x_.nbd+3*x_.nfa,6);
+  measurementUpdate(z-h_mocap_, R_mocap_, H_mocap, K_mocap);
 }
 
 
-void EKF::measurementUpdate(const VectorXd &err, const MatrixXd& R, const MatrixXd &H, MatrixXd &K)
+void EKF::measurementUpdate(const VectorXd &err, const MatrixXd& R, const Block<MatrixXd> &H, Block<MatrixXd> &K)
 {
-  K = P_ * H.transpose() * (R + H * P_ * H.transpose()).inverse();
+  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto P = P_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  K = P * H.transpose() * (R + H * P * H.transpose()).inverse();
   if (use_partial_update_)
   {
-    x_ += lambda_.cwiseProduct(K * err);
-    P_ += Lambda_.cwiseProduct((I_DOF_ - K * H) * P_ * (I_DOF_ - K * H).transpose() + K * R * K.transpose() - P_);
+    auto Lambda = Lambda_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+    auto lambda = lambda_.segment(0,x_.nbd+3*x_.nfa);
+    x_ += lambda.cwiseProduct(K * err);
+    P += Lambda.cwiseProduct((I - K * H) * P * (I - K * H).transpose() + K * R * K.transpose() - P);
   }
   else
   {
     x_ += K * err;
-    P_ = (I_DOF_ - K * H) * P_ * (I_DOF_ - K * H).transpose() + K * R * K.transpose();
+    P = (I - K * H) * P * (I - K * H).transpose() + K * R * K.transpose();
   }
 }
 

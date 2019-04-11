@@ -60,7 +60,7 @@ private:
   void cameraUpdate(const common::FeatVecd &tracked_feats);
   void gpsUpdate(const Vector6d& z);
   void mocapUpdate(const xform::Xformd& z);
-  void measurementUpdate(const VectorXd& err, const MatrixXd &R, const MatrixXd& H, MatrixXd &K);
+  void measurementUpdate(const VectorXd& err, const MatrixXd &R, const Block<MatrixXd> &H, Block<MatrixXd> &K);
   void getPixMatches(const common::FeatVecd& tracked_feats);
   void removeFeatFromState(const int& idx);
   void addFeatToState(const common::FeatVecd& tracked_feats);
