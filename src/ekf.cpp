@@ -6,11 +6,11 @@ namespace pbviekf
 
 
 EKF::EKF()
-  : last_filter_update_(-1e9), nfa_(0), second_imu_received_(false)
+  : last_filter_update_(-1e9), second_imu_received_(false)
 {}
 
 EKF::EKF(const string& filename, const string& name)
-  : last_filter_update_(-1e9), nfa_(0), second_imu_received_(false)
+  : last_filter_update_(-1e9), second_imu_received_(false)
 {
   load(filename, name);
 }
@@ -20,72 +20,69 @@ EKF::~EKF() {}
 
 void EKF::load(const string &filename, const std::string& name)
 {
-  // Resize arrays to the correct sizes
-  common::get_yaml_node("update_rate", filename, update_rate_);
-  common::get_yaml_node("max_history_size", filename, max_history_size_);
-  common::get_yaml_node("num_features", filename, nfm_);
+  // Initialize state and resize arrays to the correct sizes
+  int nfm;
+  VectorXd x0(17);
   common::get_yaml_node("use_drag", filename, use_drag_);
-  common::get_yaml_node("use_partial_update", filename, use_partial_update_);
-  common::get_yaml_node("use_keyframe_reset", filename, use_keyframe_reset_);
-  if (use_drag_)
-    nbs_ = 17;
-  else
-    nbs_ = 16;
-  nbd_ = nbs_ - 1;
-  num_states_ = nbs_ + 3 * nfm_;
-  num_dof_ = nbd_ + 3 * nfm_;
+  common::get_yaml_node("num_features", filename, nfm);
+  common::get_yaml_eigen("x0", filename, x0);
+  x_ = State<double>(0, uVector::Constant(NAN), nfm, 0, use_drag_, x0);
 
-  xdot_ = VectorXd::Zero(num_dof_);
-  dxp_ = VectorXd::Zero(num_dof_);
-  dxm_ = VectorXd::Zero(num_dof_);
-  P_ = MatrixXd::Zero(num_dof_,num_dof_);
-  F_ = MatrixXd::Zero(num_dof_,num_dof_);
-  A_ = MatrixXd::Zero(num_dof_,num_dof_);
-  Qx_ = MatrixXd::Zero(num_dof_,num_dof_);
-  I_DOF_ = MatrixXd::Zero(num_dof_,num_dof_);
-  N_ = MatrixXd::Zero(num_dof_,num_dof_);
-  G_ = MatrixXd::Zero(num_dof_,NI);
-  B_ = MatrixXd::Zero(num_dof_,NI);
-  R_cam_big_ = MatrixXd::Zero(2*nfm_,2*nfm_);
-  z_cam_ = VectorXd::Zero(2*nfm_);
-  h_cam_ = VectorXd::Zero(2*nfm_);
-  H_cam_ = MatrixXd::Zero(2*nfm_,num_dof_);
-  K_cam_ = MatrixXd::Zero(num_dof_,2*nfm_);
-  H_gps_ = MatrixXd::Zero(6,num_dof_);
-  K_gps_ = MatrixXd::Zero(num_dof_,6);
-  H_mocap_ = MatrixXd::Zero(6,num_dof_);
-  K_mocap_ = MatrixXd::Zero(num_dof_,6);
+  int num_dof = x_.nbd + 3 * x_.nfm;
+  xdot_ = VectorXd::Zero(num_dof);
+  dxp_ = VectorXd::Zero(num_dof);
+  dxm_ = VectorXd::Zero(num_dof);
+  P_ = MatrixXd::Zero(num_dof,num_dof);
+  F_ = MatrixXd::Zero(num_dof,num_dof);
+  A_ = MatrixXd::Zero(num_dof,num_dof);
+  Qx_ = MatrixXd::Zero(num_dof,num_dof);
+  I_DOF_ = MatrixXd::Zero(num_dof,num_dof);
+  N_ = MatrixXd::Zero(num_dof,num_dof);
+  G_ = MatrixXd::Zero(num_dof,NI);
+  B_ = MatrixXd::Zero(num_dof,NI);
+  R_cam_big_ = MatrixXd::Zero(2*x_.nfm,2*x_.nfm);
+  z_cam_ = VectorXd::Zero(2*x_.nfm);
+  h_cam_ = VectorXd::Zero(2*x_.nfm);
+  H_cam_ = MatrixXd::Zero(2*x_.nfm,num_dof);
+  K_cam_ = MatrixXd::Zero(num_dof,2*x_.nfm);
+  H_gps_ = MatrixXd::Zero(6,num_dof);
+  K_gps_ = MatrixXd::Zero(num_dof,6);
+  H_mocap_ = MatrixXd::Zero(6,num_dof);
+  K_mocap_ = MatrixXd::Zero(num_dof,6);
 
   // Initializations
   Vector3d lambda_feat;
-  VectorXd x0(17), P0_base(16), Qx_base(16), lambda_base(16);
+  VectorXd P0_base(16), Qx_base(16), lambda_base(16);
+  common::get_yaml_node("update_rate", filename, update_rate_);
+  common::get_yaml_node("max_history_size", filename, max_history_size_);
+  common::get_yaml_node("use_partial_update", filename, use_partial_update_);
+  common::get_yaml_node("use_keyframe_reset", filename, use_keyframe_reset_);
   common::get_yaml_node("rho0", filename, rho0_);
   common::get_yaml_node("init_imu_bias", filename, init_imu_bias_);
-  common::get_yaml_eigen("x0", filename, x0);
   common::get_yaml_eigen("P0", filename, P0_base);
   common::get_yaml_eigen("Qx", filename, Qx_base);
   common::get_yaml_eigen_diag("Qu", filename, Qu_);
   common::get_yaml_eigen_diag("P0_feat", filename, P0_feat_);
   common::get_yaml_eigen_diag("Qx_feat", filename, Qx_feat_);
-  x_ = State<double>(0, uVector::Constant(NAN), nbs_, nfm_, nfa_, x0);
-  P_.topLeftCorner(nbd_,nbd_) = P0_base.topRows(nbd_).asDiagonal();
-  Qx_.topLeftCorner(nbd_,nbd_) = Qx_base.topRows(nbd_).asDiagonal();
-  for (int i = 0; i < nfm_; ++i)
-    Qx_.block<3,3>(nbd_+3*i,nbd_+3*i) = Qx_feat_;
-  for (int i = 0; i < nfm_; ++i)
-    H_cam_.block<2,2>(2*i,nbd_+3*i).setIdentity();
+
+  P_.topLeftCorner(x_.nbd,x_.nbd) = P0_base.topRows(x_.nbd).asDiagonal();
+  Qx_.topLeftCorner(x_.nbd,x_.nbd) = Qx_base.topRows(x_.nbd).asDiagonal();
+  for (int i = 0; i < x_.nfm; ++i)
+    Qx_.block<3,3>(x_.nbd+3*i,x_.nbd+3*i) = Qx_feat_;
+  for (int i = 0; i < x_.nfm; ++i)
+    H_cam_.block<2,2>(2*i,x_.nbd+3*i).setIdentity();
   I_DOF_.setIdentity();
 
   if (use_partial_update_)
   {
     common::get_yaml_eigen("lambda", filename, lambda_base);
     common::get_yaml_eigen("lambda_feat", filename, lambda_feat);
-    dx_ones_ = VectorXd::Ones(num_dof_);
-    lambda_ = VectorXd::Zero(num_dof_);
-    Lambda_ = MatrixXd::Zero(num_dof_,num_dof_);
-    lambda_.topRows(nbd_) = lambda_base.topRows(nbd_);
-    for (int i = 0; i < nfm_; ++i)
-      lambda_.segment<3>(nbd_+3*i) = lambda_feat;
+    dx_ones_ = VectorXd::Ones(num_dof);
+    lambda_ = VectorXd::Zero(num_dof);
+    Lambda_ = MatrixXd::Zero(num_dof,num_dof);
+    lambda_.topRows(x_.nbd) = lambda_base.topRows(x_.nbd);
+    for (int i = 0; i < x_.nfm; ++i)
+      lambda_.segment<3>(x_.nbd+3*i) = lambda_feat;
     Lambda_ = dx_ones_ * lambda_.transpose() + lambda_*dx_ones_.transpose() - lambda_*lambda_.transpose();
   }
 
@@ -112,10 +109,11 @@ void EKF::load(const string &filename, const std::string& name)
   common::get_yaml_eigen("p_uc", filename, p_uc_);
   common::get_yaml_eigen("q_uc", filename, q_uc);
   common::get_yaml_eigen("camera_matrix", filename, cam_matrix_);
+
   q_ub_ = quat::Quatd(q_ub.normalized());
   q_um_ = quat::Quatd(q_um.normalized());
   q_uc_ = quat::Quatd(q_uc.normalized());
-  for (int i = 0; i < nfm_; ++i)
+  for (int i = 0; i < x_.nfm; ++i)
     R_cam_big_.block<2,2>(2*i,2*i) = R_cam_;
   fx_ = cam_matrix_(0,0);
   fy_ = cam_matrix_(1,1);
@@ -197,7 +195,7 @@ void EKF::logTruth(const double &t, const Vector3d &p_t, const Vector3d &v_t, co
     true_state_log_.log(mu_t);
 
   // Compute true landmark pixel measurement
-  for (int i = 0; i < nfm_; ++i)
+  for (int i = 0; i < x_.nfm; ++i)
   {
     if (i+1 <= x_.nfa)
     {
@@ -253,12 +251,12 @@ void EKF::f(const Stated &x, const uVector &u, VectorXd &dx, const uVector &eta)
   else
     dx.segment<3>(DV) = accel + common::gravity * x.q.rotp(common::e3) - omega.cross(x.v);
   dx.segment<3>(DQ) = omega;
-  for (int i = 0; i < nfm_; ++i)
+  for (int i = 0; i < x_.nfa; ++i)
   {
     Vector2d pix = x.feats[i].pix;
     double rho = x.feats[i].rho;
-    dx.segment<2>(nbd_+3*i) = Omega(pix) * omega_c + rho * V(pix) * v_c;
-    dx(nbd_+3*i+2) = rho * M(pix) * omega_c + rho * rho * common::e3.dot(v_c);
+    dx.segment<2>(x_.nbd+3*i) = Omega(pix) * omega_c + rho * V(pix) * v_c;
+    dx(x_.nbd+3*i+2) = rho * M(pix) * omega_c + rho * rho * common::e3.dot(v_c);
   }
 }
 
@@ -335,16 +333,22 @@ void EKF::filterUpdate()
 
 void EKF::propagate(const double &t, const uVector& imu)
 {
-  // Time step
+  // Time step and grab appropriate blocks
   double dt = t - x_.t;
+  auto P = P_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto Qx = Qx_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto F = F_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto A = A_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto G = G_.block(0,0,x_.nbd+3*x_.nfa,NI);
+  auto B = B_.block(0,0,x_.nbd+3*x_.nfa,NI);
+  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
 
   // Propagate the covariance - guarantee positive-definite P with discrete propagation
   //    analyticalFG(x_, imu, F_, G_);
-  numericalFG(x_, imu, F_, G_);
-  A_ = I_DOF_ + F_ * dt + F_ * F_ * dt * dt / 2.0; // Approximate state transition matrix
-  B_ = (I_DOF_ + F_ * dt / 2.0) * G_ * dt;
-  P_.topLeftCorner(nbd_+3*x_.nfa,nbd_+3*x_.nfa) = A_.topLeftCorner(nbd_+3*x_.nfa,nbd_+3*x_.nfa) * P_.topLeftCorner(nbd_+3*x_.nfa,nbd_+3*x_.nfa) * A_.topLeftCorner(nbd_+3*x_.nfa,nbd_+3*x_.nfa).transpose() +
-      B_.topRows(nbd_+3*x_.nfa) * Qu_ * B_.topRows(nbd_+3*x_.nfa).transpose() + Qx_.topLeftCorner(nbd_+3*x_.nfa,nbd_+3*x_.nfa);
+  numericalFG(x_, imu, F, G);
+  A = I + F * dt + F * F * dt * dt / 2.0; // Approximate state transition matrix
+  B = (I + F * dt / 2.0) * G * dt;
+  P = A * P * A.transpose() + B * Qu_ * B.transpose() + Qx;
 
   // Trapezoidal integration on the IMU input
   f(x_, 0.5*(imu+x_.imu), xdot_);
@@ -375,7 +379,7 @@ void EKF::cameraUpdate(const common::FeatVecd &tracked_feats)
   }
 
   // Fill state with new features if needed
-  if (x_.nfa < nfm_)
+  if (x_.nfa < x_.nfm)
     addFeatToState(tracked_feats);
 
   if (use_keyframe_reset_)
@@ -490,20 +494,20 @@ void EKF::removeFeatFromState(const int &idx)
   for (j = idx; j < x_.nfa-1; ++j)
   {
     x_.feats[j] = x_.feats[j+1];
-    P_.row(nbd_+3*j) = P_.row(nbd_+3*(j+1));
-    P_.row(nbd_+3*j+1) = P_.row(nbd_+3*(j+1)+1);
-    P_.row(nbd_+3*j+2) = P_.row(nbd_+3*(j+1)+2);
-    P_.col(nbd_+3*j) = P_.col(nbd_+3*(j+1));
-    P_.col(nbd_+3*j+1) = P_.col(nbd_+3*(j+1)+1);
-    P_.col(nbd_+3*j+2) = P_.col(nbd_+3*(j+1)+2);
+    P_.row(x_.nbd+3*j) = P_.row(x_.nbd+3*(j+1));
+    P_.row(x_.nbd+3*j+1) = P_.row(x_.nbd+3*(j+1)+1);
+    P_.row(x_.nbd+3*j+2) = P_.row(x_.nbd+3*(j+1)+2);
+    P_.col(x_.nbd+3*j) = P_.col(x_.nbd+3*(j+1));
+    P_.col(x_.nbd+3*j+1) = P_.col(x_.nbd+3*(j+1)+1);
+    P_.col(x_.nbd+3*j+2) = P_.col(x_.nbd+3*(j+1)+2);
   }
   x_.feats[j] = common::Featd();
-  P_.row(nbd_+3*j).setZero();
-  P_.row(nbd_+3*j+1).setZero();
-  P_.row(nbd_+3*j+2).setZero();
-  P_.col(nbd_+3*j).setZero();
-  P_.col(nbd_+3*j+1).setZero();
-  P_.col(nbd_+3*j+2).setZero();
+  P_.row(x_.nbd+3*j).setZero();
+  P_.row(x_.nbd+3*j+1).setZero();
+  P_.row(x_.nbd+3*j+2).setZero();
+  P_.col(x_.nbd+3*j).setZero();
+  P_.col(x_.nbd+3*j+1).setZero();
+  P_.col(x_.nbd+3*j+2).setZero();
 
   // Decrement the active feature counter
   --x_.nfa;
@@ -538,14 +542,14 @@ void EKF::addFeatToState(const common::FeatVecd &tracked_feats)
       x_.feats[x_.nfa].id = f.id;
       x_.feats[x_.nfa].pix = f.pix;
       x_.feats[x_.nfa].rho = rho0_;
-      P_.block<3,3>(nbd_+3*x_.nfa,nbd_+3*x_.nfa) = P0_feat_;
+      P_.block<3,3>(x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa) = P0_feat_;
 
       // Increment number of active features
       ++x_.nfa;
     }
 
     // Don't try adding more features than allowed
-    if (x_.nfa == nfm_) break;
+    if (x_.nfa == x_.nfm) break;
   }
 }
 
@@ -581,7 +585,8 @@ void EKF::keyframeReset(const common::FeatVecd &tracked_feats)
     }
 
     // Compute covariance update Jacobian
-    numericalN(x_, N_);
+    auto N = N_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+    numericalN(x_, N);
 
     // Reset state and covariance
     x_.p.setZero();
@@ -591,7 +596,7 @@ void EKF::keyframeReset(const common::FeatVecd &tracked_feats)
 }
 
 
-void EKF::analyticalFG(const Stated &x, const uVector &u, MatrixXd &F, MatrixXd &G)
+void EKF::analyticalFG(const Stated &x, const uVector &u, Block<MatrixXd> &F, Block<MatrixXd> &G)
 {
   F.setZero();
   F.block<3,3>(DP,DV) = x.q.inverse().R();
@@ -610,18 +615,19 @@ void EKF::analyticalFG(const Stated &x, const uVector &u, MatrixXd &F, MatrixXd 
 }
 
 
-void EKF::numericalFG(const Stated &x, const uVector &u, MatrixXd &F, MatrixXd &G)
+void EKF::numericalFG(const Stated &x, const uVector &u, Block<MatrixXd> &F, Block<MatrixXd> &G)
 {
   static const double eps(1e-5);
   static Matrix6d I6 = Matrix6d::Identity();
   static uVector eta = Vector6d::Ones();
   static Stated xp, xm;
   static uVector etap, etam;
+  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
 
   for (int i = 0; i < F.cols(); ++i)
   {
-    xp = x + I_DOF_.col(i) * eps;
-    xm = x + I_DOF_.col(i) * -eps;
+    xp = x + I.col(i) * eps;
+    xm = x + I.col(i) * -eps;
 
     f(xp, u, dxp_);
     f(xm, u, dxm_);
@@ -643,13 +649,14 @@ void EKF::numericalFG(const Stated &x, const uVector &u, MatrixXd &F, MatrixXd &
 }
 
 
-void EKF::numericalN(const Stated &x, MatrixXd &N)
+void EKF::numericalN(const Stated &x, Block<MatrixXd>& N)
 {
   static const double eps(1e-5);
   static Stated xp, xm, x_plusp, x_plusm;
+  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
   for (int i = 0; i < N.cols(); ++i)
   {
-    xp = x + I_DOF_.col(i) * eps;
+    xp = x + I.col(i) * eps;
     x_plusp = xp;
     x_plusp.p.setZero();
     x_plusp.q = quat::Quatd(xp.q.roll(), xp.q.pitch(), 0);
@@ -683,7 +690,7 @@ void EKF::logEst()
   ekf_state_log_.logMatrix(p, x_.v, q.euler(), x_.ba, x_.bg);
   if (use_drag_)
     ekf_state_log_.log(x_.mu);
-  for (int i = 0; i < nfm_; ++i)
+  for (int i = 0; i < x_.nfm; ++i)
   {
     if (i+1 <= x_.nfa)
     {

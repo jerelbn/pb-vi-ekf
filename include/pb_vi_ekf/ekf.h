@@ -65,9 +65,9 @@ private:
   void removeFeatFromState(const int& idx);
   void addFeatToState(const common::FeatVecd& tracked_feats);
   void keyframeReset(const common::FeatVecd& tracked_feats);
-  void analyticalFG(const Stated &x, const uVector& u, MatrixXd& F, MatrixXd& G);
-  void numericalFG(const Stated &x, const uVector& u, MatrixXd& F, MatrixXd& G);
-  void numericalN(const Stated &x, MatrixXd& N);
+  void analyticalFG(const Stated &x, const uVector& u, Block<MatrixXd> &F, Block<MatrixXd> &G);
+  void numericalFG(const Stated &x, const uVector& u, Block<MatrixXd> &F, Block<MatrixXd> &G);
+  void numericalN(const Stated &x, Block<MatrixXd>& N);
   void logEst();
 
   Matrix<double,2,3> Omega(const Vector2d& nu);
@@ -78,10 +78,6 @@ private:
   bool second_imu_received_;
   double update_rate_, last_filter_update_;
   bool use_drag_, use_partial_update_, use_keyframe_reset_;
-  int nfm_; // maximum number of features in the state
-  int nfa_; // active number of features in the state
-  int nbs_, nbd_; // number of base states/degrees of freedom
-  int num_states_, num_dof_;
   double rho0_;
   bool init_imu_bias_;
   State<double> x_;
