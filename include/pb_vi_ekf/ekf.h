@@ -36,6 +36,9 @@ public:
   void logTruth(const double& t, const Vector3d& p_t, const Vector3d& v_t, const quat::Quatd& q_t,
                 const Vector3d& ba_t, const Vector3d& bg_t, const double& mu_t, const Vector3d &omegab_t, const MatrixXd& lm);
 
+  void setVelocity(const Vector3d& v) { x_.v = v; }
+  void setAttitude(const Vector4d& q) { x_.q.arr_ = q; }
+  void setDrag(const double& mu) { x_.mu = mu; }
   const bool& getFilterUpdateStatus() const { return just_updated_filter_; }
   const Stated& getState() const { return x_; }
   const MatrixXd& getCov() const { return P_; }
