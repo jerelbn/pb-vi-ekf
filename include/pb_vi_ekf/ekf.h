@@ -36,6 +36,7 @@ public:
   void logTruth(const double& t, const Vector3d& p_t, const Vector3d& v_t, const quat::Quatd& q_t,
                 const Vector3d& ba_t, const Vector3d& bg_t, const double& mu_t, const Vector3d &omegab_t, const MatrixXd& lm);
 
+  const bool& getFilterUpdateStatus() const { return just_updated_filter_; }
   const Stated& getState() const { return x_; }
   const MatrixXd& getCov() const { return P_; }
   const Vector3d& getGlobalPosition() const
@@ -75,6 +76,7 @@ private:
   RowVector3d M(const Vector2d& nu);
 
   // Primary variables
+  bool just_updated_filter_;
   bool second_imu_received_;
   double update_rate_, last_filter_update_;
   bool use_drag_, use_partial_update_, use_keyframe_reset_;

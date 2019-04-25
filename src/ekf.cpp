@@ -6,11 +6,11 @@ namespace pbviekf
 
 
 EKF::EKF()
-  : last_filter_update_(-1e9), second_imu_received_(false)
+  : last_filter_update_(-1e9), second_imu_received_(false), just_updated_filter_(false)
 {}
 
 EKF::EKF(const string& filename, const string& name)
-  : last_filter_update_(-1e9), second_imu_received_(false)
+  : last_filter_update_(-1e9), second_imu_received_(false), just_updated_filter_(false)
 {
   load(filename, name);
 }
@@ -124,7 +124,7 @@ void EKF::load(const string &filename, const std::string& name)
   // Logging
   std::stringstream ss_t, ss_e, ss_c;
   ss_t << "/tmp/" << name << "_ekf_truth.log";
-  ss_e << "/tmp/" << name << "_ekf_state.log";
+  ss_e << "/tmp/" << name << "_ekf_est.log";
   ss_c << "/tmp/" << name << "_ekf_cov.log";
   true_state_log_.open(ss_t.str());
   ekf_state_log_.open(ss_e.str());
@@ -156,6 +156,11 @@ void EKF::imuCallback(const common::Imud& z)
   {
     filterUpdate();
     last_filter_update_ = z.t;
+    just_updated_filter_ = true;
+  }
+  else
+  {
+    just_updated_filter_ = false;
   }
 }
 
