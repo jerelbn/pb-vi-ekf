@@ -49,6 +49,8 @@ void EKF::load(const string &filename, const std::string& name)
   K_gps_ = MatrixXd::Zero(num_dof,6);
   H_mocap_ = MatrixXd::Zero(6,num_dof);
   K_mocap_ = MatrixXd::Zero(num_dof,6);
+  H_acc_ = MatrixXd::Zero(2,num_dof);
+  K_acc_ = MatrixXd::Zero(num_dof,2);
 
   // Initializations
   Vector3d lambda_feat;
@@ -99,6 +101,7 @@ void EKF::load(const string &filename, const std::string& name)
 
   // Load sensor parameters
   Vector4d q_ub, q_um, q_uc;
+  common::get_yaml_eigen_diag("R_acc", filename, R_acc_);
   common::get_yaml_eigen_diag("R_gps", filename, R_gps_);
   common::get_yaml_eigen_diag("R_mocap", filename, R_mocap_);
   common::get_yaml_eigen_diag("R_cam", filename, R_cam_);
@@ -296,7 +299,10 @@ void EKF::filterUpdate()
   while (nmit != all_measurements_.end())
   {
     if (nmit->type == common::IMU)
+    {
+      imuUpdate(nmit->imu.vec().topRows<2>());
       propagate(nmit->t, nmit->imu.vec());
+    }
     if (nmit->type == common::GPS)
     {
       if (fabs(nmit->t - x_.t) > 1e-5)
@@ -360,6 +366,32 @@ void EKF::propagate(const double &t, const uVector& imu)
   x_ += xdot_ * dt;
   x_.t = t;
   x_.imu = imu;
+}
+
+
+void EKF::imuUpdate(const Vector2d& z)
+{
+  // Measurement model and matrix
+  h_acc_ = common::I_2x3 * (-x_.mu * x_.v + x_.ba);
+
+  static Vector2d hp, hm;
+  static Stated xp, xm;
+  static double eps = 1e-5;
+  for (int i = 0; i < H_acc_.cols(); ++i)
+  {
+    xp = x_ + I_DOF_.col(i) * eps;
+    xm = x_ + I_DOF_.col(i) * -eps;
+
+    hp = common::I_2x3 * (-xp.mu * xp.v + xp.ba);
+    hm = common::I_2x3 * (-xm.mu * xm.v + xm.ba);
+
+    H_acc_.col(i) = (hp - hm) / (2.0 * eps);
+  }
+
+  // Apply the update
+  auto H_acc = H_acc_.block(0,0,2,x_.nbd+3*x_.nfa);
+  auto K_acc = K_acc_.block(0,0,x_.nbd+3*x_.nfa,2);
+  measurementUpdate(z-h_acc_, R_acc_, H_acc, K_acc);
 }
 
 

@@ -37,6 +37,7 @@ Qx_feat: [0, 0, 0]
 
 Qu: [0.25, 0.25, 0.25, # ACCEL
      0.01, 0.01, 0.01] # GYRO
+R_acc: [1.0, 1.0]
 R_gps: [25.0, 25.0, 81.0, # POSITION
         0.01, 0.01, 0.09] # VELOCITY
 R_mocap: [1e-2, 1e-2, 1e-2, # POSITION

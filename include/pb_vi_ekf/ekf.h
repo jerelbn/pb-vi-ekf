@@ -61,6 +61,7 @@ private:
   void f(const Stated &x, const uVector& u, VectorXd &dx, const uVector& eta = uVector::Zero());
   void filterUpdate();
   void propagate(const double &t, const uVector &imu);
+  void imuUpdate(const Vector2d &z);
   void cameraUpdate(const common::FeatVecd &tracked_feats);
   void gpsUpdate(const Vector6d& z);
   void mocapUpdate(const xform::Xformd& z);
@@ -109,6 +110,9 @@ private:
   quat::Quatd q_yaw_global_;
 
   // Sensor parameters
+  Vector2d h_acc_;
+  MatrixXd H_acc_, K_acc_;
+  Matrix2d R_acc_;
   Vector6d h_gps_;
   MatrixXd H_gps_, K_gps_;
   Matrix6d R_gps_;
