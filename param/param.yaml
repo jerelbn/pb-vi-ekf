@@ -44,7 +44,8 @@ R_gps: [25.0, 25.0, 81.0, # POSITION
         0.01, 0.01, 0.09] # VELOCITY
 R_mocap: [1e-2, 1e-2, 1e-2, # POSITION
           1e-2, 1e-2, 1e-2] # ATTITUDE
-R_cam: [0.1, 0.1]
+R_cam: [0.25, 0.25]
+R_cam_depth: 1.0
 
 lambda: [1.0, 1.0, 1.0, # POS
          1.0, 1.0, 1.0, # VEL
