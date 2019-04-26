@@ -61,7 +61,7 @@ private:
   void f(const Stated &x, const uVector& u, VectorXd &dx, const uVector& eta = uVector::Zero());
   void filterUpdate();
   void propagate(const double &t, const uVector &imu);
-  void imuUpdate(const Vector2d &z);
+  void accelUpdate(const Vector2d &z);
   void cameraUpdate(const common::FeatVecd &tracked_feats);
   void gpsUpdate(const Vector6d& z);
   void mocapUpdate(const xform::Xformd& z);
@@ -81,6 +81,7 @@ private:
 
   // Primary variables
   bool just_updated_filter_;
+  bool enable_accel_update_;
   bool second_imu_received_;
   double update_rate_, last_filter_update_;
   bool use_drag_, use_partial_update_, use_keyframe_reset_;

@@ -24,6 +24,7 @@ void EKF::load(const string &filename, const std::string& name)
   int nfm;
   VectorXd x0(17);
   common::get_yaml_node("use_drag", filename, use_drag_);
+  common::get_yaml_node("enable_accel_update", filename, enable_accel_update_);
   common::get_yaml_node("num_features", filename, nfm);
   common::get_yaml_eigen("x0", filename, x0);
   x_ = State<double>(0, uVector::Constant(NAN), nfm, 0, use_drag_, x0);
@@ -300,7 +301,8 @@ void EKF::filterUpdate()
   {
     if (nmit->type == common::IMU)
     {
-      imuUpdate(nmit->imu.vec().topRows<2>());
+      if (enable_accel_update_)
+        accelUpdate(nmit->imu.vec().topRows<2>());
       propagate(nmit->t, nmit->imu.vec());
     }
     if (nmit->type == common::GPS)
@@ -369,7 +371,7 @@ void EKF::propagate(const double &t, const uVector& imu)
 }
 
 
-void EKF::imuUpdate(const Vector2d& z)
+void EKF::accelUpdate(const Vector2d& z)
 {
   // Measurement model and matrix
   h_acc_ = common::I_2x3 * (-x_.mu * x_.v + x_.ba);
