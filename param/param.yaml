@@ -3,6 +3,7 @@ update_rate: 100 # Hz
 max_history_size: 200
 
 enable_accel_update: false
+enable_feat_depth_update: false
 use_drag: true
 use_partial_update: true
 use_keyframe_reset: true

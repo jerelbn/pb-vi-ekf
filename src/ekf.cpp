@@ -25,6 +25,7 @@ void EKF::load(const string &filename, const std::string& name)
   VectorXd x0(17);
   common::get_yaml_node("use_drag", filename, use_drag_);
   common::get_yaml_node("enable_accel_update", filename, enable_accel_update_);
+  common::get_yaml_node("enable_feat_depth_update", filename, enable_feat_depth_update_);
   common::get_yaml_node("num_features", filename, nfm);
   common::get_yaml_eigen("x0", filename, x0);
   x_ = State<double>(0, uVector::Constant(NAN), nfm, 0, use_drag_, x0);
@@ -37,15 +38,20 @@ void EKF::load(const string &filename, const std::string& name)
   F_ = MatrixXd::Zero(num_dof,num_dof);
   A_ = MatrixXd::Zero(num_dof,num_dof);
   Qx_ = MatrixXd::Zero(num_dof,num_dof);
-  I_DOF_ = MatrixXd::Zero(num_dof,num_dof);
+  I_DOF_ = MatrixXd::Identity(num_dof,num_dof);
   N_ = MatrixXd::Zero(num_dof,num_dof);
   G_ = MatrixXd::Zero(num_dof,NI);
   B_ = MatrixXd::Zero(num_dof,NI);
   R_cam_big_ = MatrixXd::Zero(2*x_.nfm,2*x_.nfm);
+  R_cam_depth_big_ = MatrixXd::Zero(3*x_.nfm,3*x_.nfm);
   z_cam_ = VectorXd::Zero(2*x_.nfm);
   h_cam_ = VectorXd::Zero(2*x_.nfm);
   H_cam_ = MatrixXd::Zero(2*x_.nfm,num_dof);
   K_cam_ = MatrixXd::Zero(num_dof,2*x_.nfm);
+  z_cam_depth_ = VectorXd::Zero(3*x_.nfm);
+  h_cam_depth_ = VectorXd::Zero(3*x_.nfm);
+  H_cam_depth_ = MatrixXd::Zero(3*x_.nfm,num_dof);
+  K_cam_depth_ = MatrixXd::Zero(num_dof,3*x_.nfm);
   H_gps_ = MatrixXd::Zero(6,num_dof);
   K_gps_ = MatrixXd::Zero(num_dof,6);
   H_mocap_ = MatrixXd::Zero(6,num_dof);
@@ -74,7 +80,6 @@ void EKF::load(const string &filename, const std::string& name)
     Qx_.block<3,3>(x_.nbd+3*i,x_.nbd+3*i) = Qx_feat_;
   for (int i = 0; i < x_.nfm; ++i)
     H_cam_.block<2,2>(2*i,x_.nbd+3*i).setIdentity();
-  I_DOF_.setIdentity();
 
   if (use_partial_update_)
   {
@@ -106,6 +111,7 @@ void EKF::load(const string &filename, const std::string& name)
   common::get_yaml_eigen_diag("R_gps", filename, R_gps_);
   common::get_yaml_eigen_diag("R_mocap", filename, R_mocap_);
   common::get_yaml_eigen_diag("R_cam", filename, R_cam_);
+  common::get_yaml_node("R_cam_depth", filename, R_cam_depth_);
   common::get_yaml_eigen("p_ub", filename, p_ub_);
   common::get_yaml_eigen("q_ub", filename, q_ub);
   common::get_yaml_eigen("p_um", filename, p_um_);
@@ -118,7 +124,11 @@ void EKF::load(const string &filename, const std::string& name)
   q_um_ = quat::Quatd(q_um.normalized());
   q_uc_ = quat::Quatd(q_uc.normalized());
   for (int i = 0; i < x_.nfm; ++i)
+  {
     R_cam_big_.block<2,2>(2*i,2*i) = R_cam_;
+    R_cam_depth_big_.block<2,2>(3*i,3*i) = R_cam_;
+    R_cam_depth_big_(3*i+2,3*i+2) = R_cam_depth_;
+  }
   fx_ = cam_matrix_(0,0);
   fy_ = cam_matrix_(1,1);
   u0_ = cam_matrix_(0,2);
@@ -406,18 +416,60 @@ void EKF::cameraUpdate(const common::FeatVecd &tracked_feats)
   if (x_.nfa > 0)
   {
     // Build measurement vector and model
-    auto z_cam = z_cam_.segment(0,x_.nbd+x_.nfa);
-    auto h_cam = h_cam_.segment(0,x_.nbd+x_.nfa);
-    for (int i = 0; i < x_.nfa; ++i)
+    if (enable_feat_depth_update_)
     {
-      z_cam.segment<2>(2*i) = matched_feats_[i];
-      h_cam.segment<2>(2*i) = x_.feats[i].pix;
-    }
+      auto z = z_cam_depth_.topRows(3*x_.nfa);
+      auto h = h_cam_depth_.topRows(3*x_.nfa);
+      for (int i = 0; i < x_.nfa; ++i)
+      {
+        z.segment<2>(3*i) = matched_feats_[i].topRows<2>();
+        z(3*i+2) = matched_feats_[i](2);
+        h.segment<2>(3*i) = x_.feats[i].pix;
+        h(3*i+2) = ((1.0 / x_.feats[i].rho) * cam_matrix_.inverse() * Vector3d(x_.feats[i].pix(0),x_.feats[i].pix(1),1)).norm();
+      }
 
-    auto R_cam = R_cam_big_.block(0,0,2*x_.nfa,2*x_.nfa);
-    auto H_cam = H_cam_.block(0,0,2*x_.nfa,x_.nbd+3*x_.nfa);
-    auto K_cam = K_cam_.block(0,0,x_.nbd+3*x_.nfa,2*x_.nfa);
-    measurementUpdate(z_cam-h_cam, R_cam, H_cam, K_cam);
+      static VectorXd hp_big = VectorXd::Zero(3*x_.nfm);
+      static VectorXd hm_big = VectorXd::Zero(3*x_.nfm);
+      static Stated xp, xm;
+      static double eps = 1e-5;
+      auto hp = hp_big.topRows(3*x_.nfa);
+      auto hm = hm_big.topRows(3*x_.nfa);
+      auto H = H_cam_depth_.topLeftCorner(3*x_.nfa,x_.nbd+3*x_.nfa);
+      for (int i = 0; i < H.cols(); ++i)
+      {
+        xp = x_ + I_DOF_.col(i) * eps;
+        xm = x_ + I_DOF_.col(i) * -eps;
+
+        for (int j = 0; j < x_.nfa; ++j)
+        {
+          hp.segment<2>(3*j) = xp.feats[j].pix;
+          hp(3*j+2) = ((1.0 / xp.feats[j].rho) * cam_matrix_.inverse() * Vector3d(xp.feats[j].pix(0),xp.feats[j].pix(1),1)).norm();
+          hm.segment<2>(3*j) = xm.feats[j].pix;
+          hm(3*j+2) = ((1.0 / xm.feats[j].rho) * cam_matrix_.inverse() * Vector3d(xm.feats[j].pix(0),xm.feats[j].pix(1),1)).norm();
+        }
+
+        H.col(i) = (hp - hm) / (2.0 * eps);
+      }
+
+      auto R = R_cam_depth_big_.topLeftCorner(3*x_.nfa,3*x_.nfa);
+      auto K = K_cam_depth_.topLeftCorner(x_.nbd+3*x_.nfa,3*x_.nfa);
+      measurementUpdate(z-h, R, H, K);
+    }
+    else
+    {
+      auto z = z_cam_.topRows(2*x_.nfa);
+      auto h = h_cam_.topRows(2*x_.nfa);
+      for (int i = 0; i < x_.nfa; ++i)
+      {
+        z.segment<2>(2*i) = matched_feats_[i].topRows<2>();
+        h.segment<2>(2*i) = x_.feats[i].pix;
+      }
+
+      auto R = R_cam_big_.topLeftCorner(2*x_.nfa,2*x_.nfa);
+      auto H = H_cam_.topLeftCorner(2*x_.nfa,x_.nbd+3*x_.nfa);
+      auto K = K_cam_.topLeftCorner(x_.nbd+3*x_.nfa,2*x_.nfa);
+      measurementUpdate(z-h, R, H, K);
+    }
   }
 
   // Fill state with new features if needed
@@ -489,7 +541,7 @@ void EKF::mocapUpdate(const xform::Xformd &z)
 
 void EKF::measurementUpdate(const VectorXd &err, const MatrixXd& R, const Block<MatrixXd> &H, Block<MatrixXd> &K)
 {
-  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
+  auto I = I_DOF_.topLeftCorner(x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
   auto P = P_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
   K = P * H.transpose() * (R + H * P * H.transpose()).inverse();
   if (use_partial_update_)
@@ -519,7 +571,10 @@ void EKF::getPixMatches(const common::FeatVecd &tracked_feats)
     {
       if (x_.feats[i].id == tf.id)
       {
-        matched_feats_.push_back(tf.pix);
+        Vector3d pix_depth;
+        pix_depth.topRows<2>() = tf.pix;
+        pix_depth(2) = tf.depth;
+        matched_feats_.push_back(pix_depth);
         id_match_found = true;
         break;
       }
@@ -591,7 +646,7 @@ void EKF::addFeatToState(const common::FeatVecd &tracked_feats)
       // Initialize feature state and corresponding covariance block
       x_.feats[x_.nfa].id = f.id;
       x_.feats[x_.nfa].pix = f.pix;
-      x_.feats[x_.nfa].rho = rho0_;
+      x_.feats[x_.nfa].rho = 1.0 / common::e3.dot(f.depth * cam_matrix_.inverse() * Vector3d(f.pix(0),f.pix(1),1));
       P_.block<3,3>(x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa) = P0_feat_;
 
       // Increment number of active features
@@ -672,12 +727,11 @@ void EKF::numericalFG(const Stated &x, const uVector &u, Block<MatrixXd> &F, Blo
   static uVector eta = Vector6d::Ones();
   static Stated xp, xm;
   static uVector etap, etam;
-  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
 
   for (int i = 0; i < F.cols(); ++i)
   {
-    xp = x + I.col(i) * eps;
-    xm = x + I.col(i) * -eps;
+    xp = x + I_DOF_.col(i) * eps;
+    xm = x + I_DOF_.col(i) * -eps;
 
     f(xp, u, dxp_);
     f(xm, u, dxm_);
@@ -703,10 +757,9 @@ void EKF::numericalN(const Stated &x, Block<MatrixXd>& N)
 {
   static const double eps(1e-5);
   static Stated xp, xm, x_plusp, x_plusm;
-  auto I = I_DOF_.block(0,0,x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa);
   for (int i = 0; i < N.cols(); ++i)
   {
-    xp = x + I.col(i) * eps;
+    xp = x + I_DOF_.col(i) * eps;
     x_plusp = xp;
     x_plusp.p.setZero();
     x_plusp.q = quat::Quatd(xp.q.roll(), xp.q.pitch(), 0);

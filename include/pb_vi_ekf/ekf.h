@@ -82,6 +82,7 @@ private:
   // Primary variables
   bool just_updated_filter_;
   bool enable_accel_update_;
+  bool enable_feat_depth_update_;
   bool second_imu_received_;
   double update_rate_, last_filter_update_;
   bool use_drag_, use_partial_update_, use_keyframe_reset_;
@@ -94,7 +95,7 @@ private:
   uMatrix Qu_;
   MatrixXd I_DOF_;
   VectorXd P_diag_;
-  vector<Vector2d, aligned_allocator<Vector2d>> matched_feats_;
+  vector<Vector3d, aligned_allocator<Vector3d>> matched_feats_;
 
   int max_history_size_;
   common::Measurementsd all_measurements_;
@@ -124,6 +125,10 @@ private:
   MatrixXd H_cam_, K_cam_;
   Matrix2d R_cam_;
   MatrixXd R_cam_big_;
+  VectorXd z_cam_depth_, h_cam_depth_;
+  MatrixXd H_cam_depth_, K_cam_depth_;
+  double R_cam_depth_;
+  MatrixXd R_cam_depth_big_;
   Vector3d p_ub_, p_um_, p_uc_;
   quat::Quatd q_ub_, q_um_, q_uc_;
   Matrix3d cam_matrix_;
