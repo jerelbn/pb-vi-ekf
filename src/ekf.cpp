@@ -428,27 +428,16 @@ void EKF::cameraUpdate(const common::FeatVecd &tracked_feats)
         h(3*i+2) = ((1.0 / x_.feats[i].rho) * cam_matrix_.inverse() * Vector3d(x_.feats[i].pix(0),x_.feats[i].pix(1),1)).norm();
       }
 
-      static VectorXd hp_big = VectorXd::Zero(3*x_.nfm);
-      static VectorXd hm_big = VectorXd::Zero(3*x_.nfm);
-      static Stated xp, xm;
-      static double eps = 1e-5;
-      auto hp = hp_big.topRows(3*x_.nfa);
-      auto hm = hm_big.topRows(3*x_.nfa);
+      static Matrix3d cam_matrix_inv = cam_matrix_.inverse();
       auto H = H_cam_depth_.topLeftCorner(3*x_.nfa,x_.nbd+3*x_.nfa);
-      for (int i = 0; i < H.cols(); ++i)
+      for (int j = 0; j < x_.nfa; ++j)
       {
-        xp = x_ + I_DOF_.col(i) * eps;
-        xm = x_ + I_DOF_.col(i) * -eps;
-
-        for (int j = 0; j < x_.nfa; ++j)
-        {
-          hp.segment<2>(3*j) = xp.feats[j].pix;
-          hp(3*j+2) = ((1.0 / xp.feats[j].rho) * cam_matrix_.inverse() * Vector3d(xp.feats[j].pix(0),xp.feats[j].pix(1),1)).norm();
-          hm.segment<2>(3*j) = xm.feats[j].pix;
-          hm(3*j+2) = ((1.0 / xm.feats[j].rho) * cam_matrix_.inverse() * Vector3d(xm.feats[j].pix(0),xm.feats[j].pix(1),1)).norm();
-        }
-
-        H.col(i) = (hp - hm) / (2.0 * eps);
+        double z = 1.0 / x_.feats[j].rho;
+        Vector3d nuH = Vector3d(x_.feats[j].pix(0),x_.feats[j].pix(1),1.0);
+        Vector3d lm_dir = (z * cam_matrix_inv * nuH).normalized();
+        H.block<2,2>(3*j,x_.nbd+3*j).setIdentity();
+        H.block<1,2>(3*j+2,x_.nbd+3*j) = z * lm_dir.transpose() * cam_matrix_inv * common::I_2x3.transpose();
+        H(3*j+2,x_.nbd+3*j+2) = -z * z * lm_dir.transpose() * cam_matrix_inv * nuH;
       }
 
       auto R = R_cam_depth_big_.topLeftCorner(3*x_.nfa,3*x_.nfa);
@@ -646,7 +635,10 @@ void EKF::addFeatToState(const common::FeatVecd &tracked_feats)
       // Initialize feature state and corresponding covariance block
       x_.feats[x_.nfa].id = f.id;
       x_.feats[x_.nfa].pix = f.pix;
-      x_.feats[x_.nfa].rho = 1.0 / common::e3.dot(f.depth * cam_matrix_.inverse() * Vector3d(f.pix(0),f.pix(1),1));
+      if (enable_feat_depth_update_)
+        x_.feats[x_.nfa].rho = 1.0 / common::e3.dot(f.depth * cam_matrix_.inverse() * Vector3d(f.pix(0),f.pix(1),1));
+      else
+        x_.feats[x_.nfa].rho = rho0_;
       P_.block<3,3>(x_.nbd+3*x_.nfa,x_.nbd+3*x_.nfa) = P0_feat_;
 
       // Increment number of active features
