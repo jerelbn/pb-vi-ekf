@@ -1,10 +1,10 @@
 show_image: false
 image_wait_time: 1 # wait key value (milliseconds) for image plotting, zero to step through images
-max_tracked_features: 100
+max_tracked_features: 200
 min_feature_quality: 15 # integer (default: 10)
 min_feature_distance: 60
-feat_filter_disparity: 50 # median disparity from keyframe to compute essential matrix
-klt_window_size: 51
+feat_filter_disparity: 60 # median disparity from keyframe to compute essential matrix
+klt_window_size: 61
 klt_pyramid_levels: 3
 klt_max_iterations: 50
 klt_max_error: 0.001

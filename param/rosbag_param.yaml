@@ -1,6 +1,6 @@
 ## ROSbag parser parameters
 # bag_name: "/home/jerel/Dropbox/MocapCalCollect1.bag"
-bag_name: "/home/jerel/Dropbox/MocapCalCollect2.bag" # good start, end, duration: 8, 55, 47
+bag_name: "/home/jerel/Dropbox/rosbags/MocapCalCollect2.bag" # good start, end, duration: 8, 55, 47
 # bag_name: "/home/jerel/Dropbox/MocapCalCollect3.bag" # good start, end, duration: 11, 126, 115
 # bag_name: "/home/jerel/Dropbox/MocapCalCollect4.bag" # good start, end, duration: 15, 88, 73
 imu_topic: "/imu/data"

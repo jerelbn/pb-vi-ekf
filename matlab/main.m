@@ -10,4 +10,4 @@ bag_name = 'MocapCalCollect2';
 % bag_name = 'MocapCalCollect3';
 % bag_name = 'MocapCalCollect4';
 
-plot_ekf(param, true, true, false, bag_name)
+plot_ekf(param, true, false, false, bag_name)

@@ -16,6 +16,7 @@ lmF = reshape(fread(fopen(strcat('/tmp/',bag_name,'_LandmarksF.log'), 'r'), 'dou
 
 figure()
 set(gcf, 'name', 'EKF Position', 'NumberTitle', 'off');
+set(gcf,'color','w');
 titles = ["North", "East", "Altitude"];
 idx = 1;
 for i=1:3
@@ -38,7 +39,7 @@ for i=1:3
         end
     end
     if i == 1
-        legend('Truth', 'EKF')
+        legend('Truth', 'EKF', 'Cov')
     end
 end
 
@@ -186,5 +187,20 @@ if plot_2d_pix
         idx = idx + 3;
     end
 end
+
+%% Plot 3D path
+figure(6); clf;
+set(gcf, "name", "3D Path and Landmarks", "NumberTitle", "off","Color","white");
+plot3(pqvF(2,:),pqvF(3,:),pqvF(4,:), "b-","linewidth", 3);
+hold on, grid on;
+plot3(ekf_state(2,:),ekf_state(3,:),ekf_state(4,:), "r-","linewidth", 2);
+title("3D Path");
+xlabel("X")
+ylabel("Y")
+zlabel("Z")
+legend("mocap","EKF")
+set(gca, 'ydir', 'reverse')
+set(gca, 'zdir', 'reverse')
+axis equal
 
 end % function plot_quad_ekf
