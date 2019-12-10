@@ -7,6 +7,3 @@
 [submodule "lib/feature-tracker"]
 	path = lib/feature-tracker
 	url = git@github.com:jerelbn/feature-tracker.git
-[submodule "matlab/yamlmatlab"]
-	path = matlab/yamlmatlab
-	url = git@magiccvs.byu.edu:Jerel/yamlmatlab.git
