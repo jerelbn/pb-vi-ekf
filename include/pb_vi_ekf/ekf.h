@@ -34,7 +34,7 @@ public:
   void gpsCallback(const common::Gpsd &z);
   void mocapCallback(const common::Mocapd& z);
   void logTruth(const double& t, const Vector3d& p_t, const Vector3d& v_t, const quat::Quatd& q_t,
-                const Vector3d& ba_t, const Vector3d& bg_t, const double& mu_t, const Vector3d &omegab_t, const MatrixXd& lm);
+                const Vector3d& ba_t, const Vector3d& bg_t, const double& mu_t, const Vector3d &omegab_t, const vector<Vector3d, aligned_allocator<Vector3d>>& lm);
 
   void setVelocity(const Vector3d& v) { x_.v = v; }
   void setAttitude(const Vector4d& q) { x_.q.arr_ = q; }

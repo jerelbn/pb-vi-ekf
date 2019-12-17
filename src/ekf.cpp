@@ -201,7 +201,7 @@ void EKF::mocapCallback(const common::Mocapd &z)
 
 
 void EKF::logTruth(const double &t, const Vector3d &p_t, const Vector3d &v_t, const Quatd &q_t,
-                   const Vector3d &ba_t, const Vector3d &bg_t, const double &mu_t, const Vector3d& omegab_t, const MatrixXd &lm)
+                   const Vector3d &ba_t, const Vector3d &bg_t, const double &mu_t, const Vector3d& omegab_t, const vector<Vector3d, aligned_allocator<Vector3d>> &lm)
 {
   // This filter state is in the IMU frame but truth is in the body frame
   Vector3d p_iu = p_t + q_t.rota(q_ub_.rotp(-p_ub_));
@@ -220,11 +220,11 @@ void EKF::logTruth(const double &t, const Vector3d &p_t, const Vector3d &v_t, co
     {
       // Find the inertial landmark that matches the current state feature label
       Vector3d lmi;
-      for (int j = 0; j < lm.cols(); ++j)
+      for (int j = 0; j < lm.size(); ++j)
       {
         if (j == x_.feats[i].id)
         {
-          lmi = lm.col(j);
+          lmi = lm[j];
           break;
         }
       }
